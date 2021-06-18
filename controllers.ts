@@ -13,7 +13,6 @@ const hello: Controller = ({version}) => {
 	}
 
 	return {
-		"type": "hello",
 		"version": VERSION,
 		"agent": "Mitsoz Client"
 	}

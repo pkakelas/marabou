@@ -1,6 +1,5 @@
-export const JSONBuffParse = (buff: Buffer): object => {
+export const JSONParse = (str: string): object => {
 	try {
-		const str = String(buff)
 		return JSON.parse(str)
 	} catch (e) {
 		return undefined

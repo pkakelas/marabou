@@ -9,5 +9,4 @@ const main = () => {
 	const s = new Server(router)
 }
 
-
 main()

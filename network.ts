@@ -2,9 +2,9 @@ import * as stringify from 'canonical-json'
 import errors from "./errors"
 import Router from './router'
 import { Socket, createServer } from "net" 
-import { JSONBuffParse } from "./utils"
+import { JSONParse } from "./utils"
 
-const MAX_BUFFER_SIZE = 1000
+const MAX_BUFFER_SIZE = 1e6
 const PORT = 8080
 
 export class Server {
@@ -19,49 +19,62 @@ export class Server {
 		console.log('[SERVER] Starting TCP server')
 
 		server.on('connection', (socket: Socket) => {
-			let bufferCache: Buffer  = Buffer.alloc(0)
+			let cache: Buffer  = Buffer.alloc(0)
 
-			socket.on('data', (newBuff: Buffer) => 
-				this.handleNewData(socket, bufferCache, newBuff))
-		}) 
+			socket.on('data', (buffer: Buffer) => {
+                cache = this.handleNewData(socket, cache, buffer)
+            })
+		})
 	}
 
-	private handleNewData(socket: Socket, bufferCache: Buffer, newBuff: Buffer): void {
+	private handleNewData(socket: Socket, bufferCache: Buffer, newBuff: Buffer): Buffer {
 		const client = this.getClientAddr(socket)
-		console.log(`[SERVER] New message from client: ${client}`, String(newBuff))
+		const buffer = Buffer.concat([bufferCache, newBuff])
+		console.log(`[SERVER] New message from client: ${client}`, newBuff.toString())
 
-		const buff = Buffer.concat([bufferCache, newBuff])
-		const req = JSONBuffParse(buff)
+        if (this.bufferExceededLimit(buffer)) {
+            console.log(`Buffer of client ${client} exceeded buffer size`)
+            socket.destroy()
+        }
 
-		if (!req) {
-			bufferCache = buff
-			return
+        const messages = buffer.toString().split('\n')
+		for (const [idx, message] of Object.entries(messages)) {
+			const req = JSONParse(message)
+
+			if (!req) {
+				// Potential TCP fragmentation
+				if (+idx == messages.length - 1) {
+					return Buffer.from(message)
+				}
+
+				this.emitError(socket, new errors.InvalidDataError())
+				socket.destroy()
+				return
+			}
+
+			const res = this.handleRequest(socket, req)
+			this.emit(socket, res)
 		}
-		if (this.bufferExceededLimit(bufferCache)) {
-			console.log(`Buffer of client ${client} exceeded buffer size`)
-			socket.destroy()
-			return
-		}
+	}
+
+	private handleRequest(socket: Socket, req: Object) {
 		if (!this.hasValidType(req)) {
 			this.emitError(socket, new errors.InvalidTypeError())
 			return
 		}
 
 		try {
-			this.emit(socket, this.handleRequest(req))
+			const res = this.router.route(req['type'], req)
+			return { type: req['type'], ...res }
 		}
 		catch (e) {
-			console.log("[SERVER] Error during req handling", e.message, client, req)
+			console.log("[SERVER] Error during req handling", e.message, req)
 
 			if (e instanceof errors.NetError) {
 				e.shouldDisclose && this.emitError(socket, e)
 				e.shouldDisconnect && socket.destroy()
 			}
 		}
-	}
-
-	private handleRequest(req: Object) {
-		return this.router.route(req['type'], req)
 	}
 
 	private hasValidType(req: Object) {
@@ -77,7 +90,7 @@ export class Server {
 			'message': e.message
 		}
 
-		socket.write(stringify(ret))
+		socket.write(stringify(ret) + '\n')
 	}
 	
 	private emit(socket: Socket, msg: Object) {
