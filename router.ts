@@ -1,18 +1,21 @@
-import { Controller } from './controllers'
+import { Controller, controllers } from './controllers'
+import { InvalidTypeError } from './errors'
 
 export default class Router {
-	private routers = {}
+	private routes = {}
 
-	public route(type: string, data: {[k: string]: any}) {
-		if (type in this.routers) {
-			return this.routers[type](data)
-		}
-
-		throw new Error("Route doesn't exist")
+	constructor() {
+		this.registerAll(controllers)
 	}
 
-	public getRoutes() {
-		return Object.keys(this.routers)
+	public route(type: string, data: {[k: string]: any}) {
+		console.log("[ROUTER] Routing request", type, data)
+
+		if (type in this.routes) {
+			return this.routes[type](data)
+		}
+
+		throw new InvalidTypeError()
 	}
 
 	public registerAll(controllers: {[type: string]: Controller}) {
@@ -22,6 +25,6 @@ export default class Router {
 	}
 
 	private register(name: string, controller: Controller) {
-		this.routers[name] = controller
+		this.routes[name] = controller
 	}
 }

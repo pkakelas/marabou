@@ -21,19 +21,24 @@ export class InvalidTypeError extends NetError {
 	message = "Invalid type provided"
 }
 
-export class IncopatibilityError extends NetError {
+export class IncompatibilityError extends NetError {
 	disconnect = true
-	message = "Incopatible Clients"
+	message = "Incompatible Clients"
 }
 export class InvalidDataError extends NetError {
 	disconnect = true
 	message = "Provided Invalid Data"
 }
+export class BufferExceededError extends NetError {
+	disconnect = true
+	message = "Buffer Exceeded 1mb"
+}
 
 const errors = { 
 	NetError,
 	InvalidTypeError,
-	IncopatibilityError,
+	BufferExceededError,
+	IncompatibilityError,
 	InvalidDataError
 }
 
